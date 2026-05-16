@@ -1,0 +1,60 @@
+{
+  "entities": {
+    "LocalPartner": {
+      "title": "LocalPartner",
+      "description": "Represents a local partner or experience",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Partner Name" },
+        "type": { "type": "string", "description": "Type of service e.g. Tour Operator, Hotel" },
+        "description": { "type": "string", "description": "Partner Description" },
+        "image": { "type": "string", "description": "Image URL" },
+        "url": { "type": "string", "description": "External URL" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["name", "type", "description", "image", "createdAt", "updatedAt"]
+    },
+    "AppAdmin": {
+      "title": "AppAdmin",
+      "description": "Whitelisted admin users",
+      "type": "object",
+      "properties": {
+         "email": { "type": "string" }
+      },
+      "required": ["email"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile with personal info",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "interests": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "foodPreferences": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["displayName", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Store user profiles"
+    },
+    "/partners/{partnerId}": {
+      "schema": { "$ref": "#/entities/LocalPartner" },
+      "description": "Store local partners globally"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AppAdmin" },
+      "description": "Store app admins"
+    }
+  }
+}

@@ -1,0 +1,82 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() { return request.auth != null; }
+    function isAdmin() { return isSignedIn() && (request.auth.token.email == 'redantofl@gmail.com' || exists(/databases/$(database)/documents/admins/$(request.auth.uid))); }
+    function isAdminEmailVerified() { return isSignedIn() && request.auth.token.email_verified == true && isAdmin(); }
+    function isOwner(uid) { return isSignedIn() && request.auth.uid == uid; }
+
+    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // DRAFT LocalPartner rules
+    function isValidLocalPartner(data) {
+      return data.keys().hasAll(['name', 'type', 'description', 'image', 'createdAt', 'updatedAt']) && 
+             data.keys().size() >= 6 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 200 &&
+             data.type is string && data.type.size() > 0 && data.type.size() <= 100 &&
+             data.description is string && data.description.size() > 0 && data.description.size() <= 2000 &&
+             data.image is string && data.image.size() > 0 && data.image.size() <= 1000 &&
+             (!('url' in data) || (data.url is string && data.url.size() <= 1000)) &&
+             data.createdAt is number && 
+             data.updatedAt is number;
+    }
+
+    match /partners/{partnerId} {
+      // Anyone can read partners list
+      allow get: if isValidId(partnerId);
+      allow list: if true;
+
+      allow create: if isValidId(partnerId) && 
+        isAdminEmailVerified() && 
+        isValidLocalPartner(incoming()) && 
+        incoming().createdAt == request.time.toMillis() &&
+        incoming().updatedAt == request.time.toMillis();
+        
+      allow update: if isValidId(partnerId) && 
+        isAdminEmailVerified() && 
+        isValidLocalPartner(incoming()) &&
+        incoming().updatedAt == request.time.toMillis() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['name', 'type', 'description', 'image', 'url', 'updatedAt']);
+
+      allow delete: if isValidId(partnerId) && isAdminEmailVerified();
+    }
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // no blanket reads
+
+      function isValidUserProfile(data) {
+        return data.keys().hasAll(['displayName', 'updatedAt']) &&
+               data.displayName is string && data.displayName.size() <= 100 &&
+               data.updatedAt is number &&
+               (!('interests' in data) || (data.interests is list && data.interests.size() <= 20 && (data.interests.size() == 0 || data.interests[0] is string))) &&
+               (!('foodPreferences' in data) || (data.foodPreferences is list && data.foodPreferences.size() <= 20 && (data.foodPreferences.size() == 0 || data.foodPreferences[0] is string)));
+      }
+
+      allow create: if isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().updatedAt == request.time.toMillis();
+
+      allow update: if isOwner(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().updatedAt == request.time.toMillis() &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'interests', 'foodPreferences', 'updatedAt']);
+
+      allow delete: if false;
+    }
+
+    match /admins/{adminId} {
+      // Admins are added manually or bootstrapped. Anyone logged in to check if they are an admin
+      allow get: if isValidId(adminId) && isSignedIn();
+      allow list: if false; // do not list admins
+      allow write: if false; // no writes from client
+    }
+  }
+}
